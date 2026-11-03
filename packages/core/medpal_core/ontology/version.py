@@ -87,3 +87,13 @@ def diff_versions(conn, old, new):
         "modified": modified,
         "counts": {"added": len(added), "removed": len(removed), "modified": len(modified)},
     }
+
+
+def list_versions(conn, limit=50):
+    """版本列表，新到旧。GET /v1/ontology/versions 用。"""
+    rows = conn.execute(
+        "SELECT version,created_at,triple_count,manifest_hash,note,is_current "
+        "FROM version ORDER BY created_at DESC LIMIT ?",
+        (int(limit),),
+    ).fetchall()
+    return [dict(r) for r in rows]
