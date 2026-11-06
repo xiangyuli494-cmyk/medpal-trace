@@ -18,6 +18,7 @@ class HuaweiConfig:
     region: str = "cn-north-4"
     project_id: str = ""
     obs_bucket: str = ""
+    obs_endpoint: str = ""
     gaussdb_dsn: str = ""
     model_endpoint: str = ""
     model_name: str = ""
@@ -40,6 +41,7 @@ def load_config() -> HuaweiConfig:
         region=_env("HUAWEI_REGION", "cn-north-4"),
         project_id=_env("HUAWEI_PROJECT_ID"),
         obs_bucket=_env("HUAWEI_OBS_BUCKET"),
+        obs_endpoint=_env("HUAWEI_OBS_ENDPOINT"),
         gaussdb_dsn=_env("MEDPAL_DB_DSN") or _env("HUAWEI_GAUSSDB_DSN"),
         model_endpoint=_env("HUAWEI_MODEL_ENDPOINT"),
         model_name=_env("HUAWEI_MODEL_NAME"),
