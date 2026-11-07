@@ -46,8 +46,8 @@ def _mask(v: str) -> str:
 
 
 def main() -> int:
-    from medpal_core.providers.huawei.obs import OBSStore
     from medpal_core.providers.huawei.config import load_config
+    from medpal_core.providers.huawei.obs import OBSStore
 
     print("== check_obs.py")
     n = 1
