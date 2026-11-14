@@ -16,10 +16,11 @@ ENV PYTHONPATH=/app/apps/api:/app/packages/core
 COPY pyproject.toml README.md ./
 COPY packages/core ./packages/core
 COPY apps ./apps
-# B10 接云时这里要换成 -e ".[huawei]"（psycopg + esdk-obs-python）；
-# 但 esdk-obs-python 依赖的 crcmod 只有 sdist、无 Linux wheel，slim 镜像
-# 没有 gcc 会编译失败，届时需要加一个 builder 阶段或预编译 wheel。
-RUN pip install --no-cache-dir -e .
+# GaussDB 走 psycopg[binary]（有 manylinux 轮子，slim 镜像不需要 gcc）。
+# 这里显式装它而不是 -e ".[huawei]"：esdk-obs-python 依赖的 crcmod 只有 sdist、
+# 无 Linux wheel，一起装会让镜像构建失败（真机联调 2026-11-15 踩过，见
+# docs/evidence/2026-11-15-cce-apig.md）。OBS 侧改用 httpx 直连，暂不需要 esdk。
+RUN pip install --no-cache-dir -e . "psycopg[binary]>=3.1"
 
 COPY data ./data
 
