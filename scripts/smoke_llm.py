@@ -34,28 +34,50 @@ PROBE_USER = "回复：ok"
 
 
 def _offline_sim() -> int:
-    """坏 base_url 走完整 pipeline，确认 llm_error 被捕获、调用方仍拿到 200。"""
-    from medpal_core.llm.openai_compatible import OpenAICompatibleLLM
-    from medpal_core.storage import connect
+    """用 TestClient 打 POST /v1/ask，断网时验 HTTP 200 + conclusion.llm_error + trace 落库。
 
+    注意：不能直接调 pipeline.answer() 来判断「接口仍 200」——那绕过了路由层，
+    即使 answer() 抛异常也测不出来。这里走 FastAPI 的 TestClient，验的是真实端点。
+    """
     sys.path.insert(0, os.path.join(ROOT, "apps", "api"))
-    from app.pipeline import answer  # noqa: E402
 
-    llm = OpenAICompatibleLLM(base_url="http://127.0.0.1:59999/v1",
-                              api_key="sk-fake", model="fake", timeout=2)
-    conn = connect()
-    try:
-        out = answer(conn, "消化性溃疡怎么治？", llm=llm)
-    finally:
-        conn.close()
-    err = (out.get("conclusion") or {}).get("llm_error")
+    # 断网：模型端点指到没人监听的端口；同时确保用默认 SQLite，不受外部 DSN 影响
+    for k in ("MEDPAL_DB_DSN", "MEDPAL_DB_BACKEND"):
+        os.environ.pop(k, None)
+    os.environ["MEDPAL_LLM"] = "openai"
+    os.environ["MEDPAL_LLM_BASE_URL"] = "http://127.0.0.1:59999/v1"
+    os.environ["MEDPAL_LLM_MODEL"] = "fake"
+    os.environ["MEDPAL_LLM_API_KEY"] = "sk-fake"
+
+    from fastapi.testclient import TestClient  # noqa: E402
+
+    from app.main import app  # noqa: E402
+
+    with TestClient(app) as client:
+        r = client.post("/v1/ask", json={"question": "消化性溃疡怎么治？"})
+        if r.status_code != 200:
+            print(f"FAIL  断网时 /v1/ask 返回 {r.status_code}（应 200）")
+            return 1
+        out = r.json()
+        tid = out.get("trace_id")
+        if not tid:
+            print("FAIL  断网时没有返回 trace_id")
+            return 1
+        back = client.get(f"/v1/traces/{tid}")
+        if back.status_code != 200:
+            print(f"FAIL  trace 未落库：GET /v1/traces/{tid} -> {back.status_code}")
+            return 1
+
+    conclusion = out.get("conclusion") or {}
+    err = conclusion.get("llm_error")
+    narrative = conclusion.get("narrative")
     if not err:
-        print("FAIL  断网时 llm_error 未写入 conclusion")
+        print("FAIL  断网时 conclusion.llm_error 未写入")
         return 1
-    if out.get("narrative"):
-        print("FAIL  断网时不该有 narrative:", str(out.get("narrative"))[:80])
+    if narrative:
+        print("FAIL  断网时不该有 conclusion.narrative:", str(narrative)[:80])
         return 1
-    print("OK    断网时接口仍返回，llm_error =", str(err)[:120])
+    print("OK    /v1/ask 200 + trace 落库，llm_error =", str(err)[:120])
     return 0
 
 
