@@ -1,0 +1,19 @@
+# 非敏感配置。模型跑 MaaS 的 /v2 端点（新模型不支持 /v1，见 docs/evidence/2026-11-15-b8-maas.md）。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: medpal-api
+  namespace: medpal
+data:
+  MEDPAL_LLM: "openai"
+  MEDPAL_LLM_BASE_URL: "https://api.modelarts-maas.com/v2"
+  MEDPAL_LLM_MODEL: "deepseek-v4.1-flash-1017"
+  MEDPAL_MAX_HOPS: "2"
+  MEDPAL_TOP_K: "8"
+  MEDPAL_DATA_DIR: "/app/data"
+  HUAWEI_REGION: "cn-north-4"
+  HUAWEI_OBS_BUCKET: "medpal-reports"
+  # 显式选 gaussdb 就必须配 MEDPAL_DB_DSN（Secret 里）：缺 DSN 时 apps/api/app/deps.py 的
+  # open_conn() 会直接抛 ProviderNotConfigured，Pod CrashLoop——不会静默回落 sqlite。
+  # 只想本地跑就把这一行删掉或改成 "sqlite"（数据落 /app/data/medpal.db）。
+  MEDPAL_DB_BACKEND: "gaussdb"
