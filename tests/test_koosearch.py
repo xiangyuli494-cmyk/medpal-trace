@@ -115,6 +115,47 @@ def test_searchtext_requires_project_id():
         KooSearchRetriever(cfg=cfg, client=FakeClient()).url()
 
 
+@pytest.mark.parametrize("field", ["project_id", "koosearch_app_id", "koosearch_repo_id"])
+def test_partial_searchtext_config_is_not_ready(field):
+    cfg = _search_cfg(**{field: ""})
+    assert cfg.koosearch_dialect == "searchtext"
+    assert not cfg.readiness()["koosearch"]
+
+
+@pytest.mark.parametrize("dialect", ["raw", "searchtext"])
+def test_full_anchor_survives_pipeline_trace(seeded, dialect):
+    from app.pipeline import answer
+    from medpal_core.retrieval.bm25 import BM25Retriever
+
+    original = BM25Retriever(seeded).search("消化性溃疡")[0]
+    doc = {"asset_id": original.asset_id, "anchor_id": original.anchor_id,
+           "text": original.text, "score": original.score}
+    cfg = (_search_cfg() if dialect == "searchtext" else
+           HuaweiConfig(koosearch_endpoint="http://127.0.0.1:9000/search"))
+    retriever = KooSearchRetriever(cfg=cfg, client=FakeClient(FakeResp({"hits": [doc]})))
+    out = answer(seeded, "消化性溃疡", retriever=retriever)
+    assert out["hits"][0]["anchor_id"] == original.anchor_id
+    assert out["trace_completeness"] == 1.0
+    assert not out["unresolved"]
+
+
+def test_foreign_asset_anchor_is_not_fabricated():
+    hit = KooSearchRetriever._hit({"asset_id": "AST-1", "anchor_id": "AST-2#a1"}, 0, 1)
+    assert hit.anchor_id == ""
+
+
+@pytest.mark.parametrize("docs", [[], [{"text": "正文，无锚点"}]])
+def test_strict_probe_rejects_unusable_retrieval(monkeypatch, docs):
+    from scripts import check_koo
+
+    from medpal_core.providers.huawei import config, koosearch
+
+    monkeypatch.setattr(config, "load_config", lambda: _search_cfg())
+    monkeypatch.setattr(koosearch, "KooSearchRetriever", lambda cfg:
+                        KooSearchRetriever(cfg=cfg, client=FakeClient(FakeResp({"hits": docs}))))
+    assert check_koo.main(["--strict"]) == 1
+
+
 def test_readiness_combinations():
     assert HuaweiConfig().readiness()["koosearch"] is False
     # 只有 endpoint 且没有 app/repo → raw 方言，算就绪（兼容自建网关）

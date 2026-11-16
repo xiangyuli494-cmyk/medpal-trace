@@ -16,7 +16,7 @@ searchtext 下必须能拿到 X-Auth-Token：给 HUAWEI_KOOSEARCH_TOKEN，
 用法（仓库根目录）：
     PYTHONPATH=packages/core:apps/api HUAWEI_KOOSEARCH_ENDPOINT=https://... \
       python scripts/check_koo.py
-    python scripts/check_koo.py --strict     # 没配也判失败（答辩前用）
+    python scripts/check_koo.py --strict     # 未配置、零召回、零锚点均失败（C5 验收）
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def _auth_mode(cfg) -> str:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="KooSearch 检索自检")
-    ap.add_argument("--strict", action="store_true", help="未配置也判失败")
+    ap.add_argument("--strict", action="store_true", help="未配置、零召回或零锚点均判失败")
     ap.add_argument("--top-k", type=int, default=5)
     args = ap.parse_args(argv)
 
@@ -64,7 +64,7 @@ def main(argv=None) -> int:
     if not ready["koosearch"]:
         msg = ("SKIP  HUAWEI_KOOSEARCH_ENDPOINT 未配置"
                if not cfg.koosearch_endpoint else
-               "SKIP  searchtext 方言缺凭据：给 HUAWEI_KOOSEARCH_TOKEN 或 HUAWEI_IAM_USER/_PASSWORD")
+               "SKIP  searchtext 配置不全：检查 PROJECT_ID / APP_ID / REPO_ID 与鉴权信息")
         if args.strict:
             print("FAIL  " + msg + "，--strict 下按失败处理")
             return 1
@@ -92,6 +92,9 @@ def main(argv=None) -> int:
         print("WARN  0 命中：端点通但索引里没有这批文档")
         if cfg.koosearch_dialect == "searchtext":
             print("      检查 repo_id 下是否已上传文档并完成解析（知识库 -> 文档管理）")
+        if args.strict:
+            print("FAIL  --strict 要求非空召回，不能以 0 hits 验收 C5")
+            return 1
         print("KOO READY (0 hits)")
         return 0
 
@@ -100,6 +103,9 @@ def main(argv=None) -> int:
         print("FAIL  命中缺正文，索引下标:", json.dumps(bad))
         return 1
     anchored = [h for h in hits if getattr(h, "anchor_id", "")]
+    if args.strict and not anchored:
+        print("FAIL  --strict 要求至少一条带锚点的命中")
+        return 1
     rate = round(len(anchored) / len(hits), 2)
     print("STEP4 [OK] 命中结构合规；锚点率", str(int(rate * 100)) + "%")
     if rate < 1:

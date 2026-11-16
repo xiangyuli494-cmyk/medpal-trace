@@ -34,8 +34,8 @@ class HuaweiConfig:
 
     @property
     def koosearch_dialect(self) -> str:
-        """有 app_id + repo_id 才是华为云真实接口（searchtext）；否则退回老的自建网关口径（raw）。"""
-        return "searchtext" if (self.koosearch_app_id and self.koosearch_repo_id) else "raw"
+        """配置任一云端 ID 就按 searchtext 检查，避免漏填时误发 raw 请求。"""
+        return "searchtext" if (self.koosearch_app_id or self.koosearch_repo_id) else "raw"
 
     def koosearch_auth_ready(self) -> bool:
         return bool(self.koosearch_token or (self.iam_user and self.iam_password))
@@ -44,7 +44,8 @@ class HuaweiConfig:
         ready = bool(self.koosearch_endpoint)
         if ready and self.koosearch_dialect == "searchtext":
             # 真实接口必须带 X-Auth-Token，没凭据就当没配，别让 /health 说假话
-            ready = self.koosearch_auth_ready()
+            ready = bool(self.project_id and self.koosearch_app_id
+                         and self.koosearch_repo_id and self.koosearch_auth_ready())
         return {
             "obs": bool(self.ak and self.sk and self.obs_bucket),
             "gaussdb": bool(self.gaussdb_dsn),

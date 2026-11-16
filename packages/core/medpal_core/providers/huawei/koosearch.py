@@ -119,6 +119,11 @@ class KooSearchRetriever:
         except (TypeError, ValueError):
             score = float(max(size - i, 0))
         placeholder = "KOO-" + str(doc.get("file_id") or doc.get("chunk_id") or i)
-        return Hit(asset or placeholder,
-                   asset + "#" + anchor if asset and anchor else "",
-                   text, score)
+        # raw 网关可能已经返回完整引用；其他资产的前缀不能静默拼接成伪引用。
+        ref = ""
+        if asset and anchor:
+            if "#" not in anchor:
+                ref = asset + "#" + anchor
+            elif anchor.startswith(asset + "#"):
+                ref = anchor
+        return Hit(asset or placeholder, ref, text, score)
