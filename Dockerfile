@@ -19,7 +19,8 @@ COPY apps ./apps
 # GaussDB 走 psycopg[binary]（有 manylinux 轮子，slim 镜像不需要 gcc）。
 # 这里显式装它而不是 -e ".[huawei]"：esdk-obs-python 依赖的 crcmod 只有 sdist、
 # 无 Linux wheel，一起装会让镜像构建失败（真机联调 2026-11-15 踩过，见
-# docs/evidence/2026-11-15-cce-apig.md）。OBS 侧改用 httpx 直连，暂不需要 esdk。
+# docs/evidence/2026-11-15-cce-apig.md）。此镜像尚未包含 OBS SDK；OBSStore 仍依赖
+# esdk-obs-python，配置桶和 AK/SK 不代表上传可用，部署验收须单列这项缺口。
 RUN pip install --no-cache-dir -e . "psycopg[binary]>=3.1"
 
 COPY data ./data
