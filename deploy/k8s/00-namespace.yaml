@@ -1,0 +1,7 @@
+# Autopilot 集群里给本应用单独开一个命名空间，便于按 ns 做资源与费用观察。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: medpal
+  labels:
+    app.kubernetes.io/part-of: medpal-trace

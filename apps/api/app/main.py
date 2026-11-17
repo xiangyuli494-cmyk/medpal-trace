@@ -69,6 +69,12 @@ def root():
     }
 
 
+@app.get("/livez")
+def livez():
+    """仅确认进程能响应；外部存储故障不触发容器重启。"""
+    return {"ok": True}
+
+
 @app.get("/health")
 def health(conn: Annotated[object, Depends(get_conn)]):
     cur = onto_version.current_version(conn)

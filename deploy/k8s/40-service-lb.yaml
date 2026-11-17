@@ -1,0 +1,21 @@
+# 给 APIG 做后端用的内网四层入口（同一 VPC vpc-1b66）。
+# CCE 会按注解自动创建一个内网 ELB；若注解不被当前 CCE 版本接受，
+# 改在控制台「服务(Service) → 创建 → 负载均衡」里选已有/新建内网 ELB，再删掉 annotations。
+apiVersion: v1
+kind: Service
+metadata:
+  name: medpal-api-lb
+  namespace: medpal
+  labels:
+    app: medpal-api
+  annotations:
+    kubernetes.io/elb.class: "union"
+    kubernetes.io/elb.autocreate: '{"type":"inner","name":"medpal-api-elb","bandwidth_name":"medpal-api-bw","bandwidth_size":5,"bandwidth_charge_mode":"traffic"}'
+spec:
+  type: LoadBalancer
+  selector:
+    app: medpal-api
+  ports:
+  - name: http
+    port: 8000
+    targetPort: http
