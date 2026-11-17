@@ -27,8 +27,9 @@ spec:
     spec:
       containers:
       - name: api
-        image: swr.cn-north-4.myhuaweicloud.com/medpal/medpal-trace:0.1.0
-        imagePullPolicy: IfNotPresent
+        # 必须先构建并推送本 PR 的 0.1.1，不能复用未核验的旧 0.1.0。
+        image: swr.cn-north-4.myhuaweicloud.com/medpal/medpal-trace:0.1.1
+        imagePullPolicy: Always
         ports:
         - name: http
           containerPort: 8000
@@ -47,23 +48,23 @@ spec:
           failureThreshold: 3
         livenessProbe:
           httpGet:
-            path: /health
+            path: /livez
             port: http
           initialDelaySeconds: 30
           periodSeconds: 20
           failureThreshold: 3
         resources:
           # 单节点 c9.large.2 可分配只有 1930m/2.4Gi，系统 DaemonSet 已占 95%，
-          # requests 必须压到很小；实际运行靠 limits 突发（QoS=Burstable）。
+          # 预留至少 128Mi；剩余资源不足时先释放或增加容量，不继续压低内存请求。
           requests:
             cpu: 50m
-            memory: 64Mi
+            memory: 128Mi
           limits:
             cpu: "500m"
             memory: 1Gi
         # 注意：不要挂 emptyDir 到 /app/data —— 镜像里自带 data/（词表、样例、本体种子），
         # 空目录会把它整体遮住，seed 会报 FileNotFoundError: /app/data/lexicon/medical.json。
         # 需要持久化时改成 PVC，而不是空目录。
-      # 私有 SWR 仓库需要拉取密钥：kubectl -n medpal create secret docker-registry swr-secret ...
-      # imagePullSecrets:
-      # - name: swr-secret
+      # 先按 README 创建拉取凭据，不依赖演示仓库恰好公开。
+      imagePullSecrets:
+      - name: swr-secret

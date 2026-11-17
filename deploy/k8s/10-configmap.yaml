@@ -12,7 +12,8 @@ data:
   MEDPAL_TOP_K: "8"
   MEDPAL_DATA_DIR: "/app/data"
   HUAWEI_REGION: "cn-north-4"
-  HUAWEI_OBS_BUCKET: "medpal-reports"
+  # 统一为 11/08 真机证据使用的桶；部署前仍须确认桶存在及当前账号访问权。
+  HUAWEI_OBS_BUCKET: "medpal-trace-cn4"
   # 显式选 gaussdb 就必须配 MEDPAL_DB_DSN（Secret 里）：缺 DSN 时 apps/api/app/deps.py 的
   # open_conn() 会直接抛 ProviderNotConfigured，Pod CrashLoop——不会静默回落 sqlite。
   # 只想本地跑就把这一行删掉或改成 "sqlite"（数据落 /app/data/medpal.db）。
