@@ -24,14 +24,33 @@ class HuaweiConfig:
     model_name: str = ""
     model_api_key: str = ""
     koosearch_endpoint: str = ""
+    koosearch_app_id: str = ""
+    koosearch_repo_id: str = ""
+    koosearch_token: str = ""
+    iam_user: str = ""
+    iam_password: str = ""
+    iam_domain: str = ""
     extras: dict = field(default_factory=dict)
 
+    @property
+    def koosearch_dialect(self) -> str:
+        """配置任一云端 ID 就按 searchtext 检查，避免漏填时误发 raw 请求。"""
+        return "searchtext" if (self.koosearch_app_id or self.koosearch_repo_id) else "raw"
+
+    def koosearch_auth_ready(self) -> bool:
+        return bool(self.koosearch_token or (self.iam_user and self.iam_password))
+
     def readiness(self) -> dict:
+        ready = bool(self.koosearch_endpoint)
+        if ready and self.koosearch_dialect == "searchtext":
+            # 真实接口必须带 X-Auth-Token，没凭据就当没配，别让 /health 说假话
+            ready = bool(self.project_id and self.koosearch_app_id
+                         and self.koosearch_repo_id and self.koosearch_auth_ready())
         return {
             "obs": bool(self.ak and self.sk and self.obs_bucket),
             "gaussdb": bool(self.gaussdb_dsn),
             "modelarts": bool(self.model_endpoint and self.model_name),
-            "koosearch": bool(self.koosearch_endpoint),
+            "koosearch": ready,
         }
 
 
@@ -50,6 +69,12 @@ def load_config() -> HuaweiConfig:
         model_name=_env("MEDPAL_LLM_MODEL") or _env("HUAWEI_MODEL_NAME"),
         model_api_key=_env("MEDPAL_LLM_API_KEY") or _env("HUAWEI_MODEL_API_KEY"),
         koosearch_endpoint=_env("HUAWEI_KOOSEARCH_ENDPOINT"),
+        koosearch_app_id=_env("HUAWEI_KOOSEARCH_APP_ID"),
+        koosearch_repo_id=_env("HUAWEI_KOOSEARCH_REPO_ID"),
+        koosearch_token=_env("HUAWEI_KOOSEARCH_TOKEN"),
+        iam_user=_env("HUAWEI_IAM_USER"),
+        iam_password=_env("HUAWEI_IAM_PASSWORD"),
+        iam_domain=_env("HUAWEI_IAM_DOMAIN"),
     )
 
 

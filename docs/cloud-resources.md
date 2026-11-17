@@ -1,5 +1,21 @@
 # 云资源申请与就绪表（C0 · 11/02 发出）
 
+## 2026-11-16 复核更新
+
+下方申请表和 §4 为各自标注日期的历史记录，不代表当前资源仍存活。
+本轮没有访问云控制台或云 API，资源删除情况与当前账单未核验。
+
+| 项 | 当前已掌握的证据 | 仍待验收 |
+| --- | --- | --- |
+| ModelArts MaaS | [PR #96](https://github.com/xiangyuli494-cmyk/medpal-trace/pull/96) 保存了 `/v2` + `deepseek-v4.1-flash-1017` 的真实调用与应用返回记录，尚未合入 main | 连续 10 次 P95；不能沿用早期「没有可用模型」作为当前结论 |
+| CCE / SWR / RDS | #96 有 Pod Running、镜像拉取与 PG 路径对照记录 | 修复后完整问答落 PG；欠费后的资源存续与清理情况 |
+| APIG | #96 记录公网返回 401/404 | `/health` 和 `/v1/ask` 成功响应，不能写成业务链路已通过 |
+| OBS | 11/08 适配器真桶验证、#84 应用接入已有历史记录 | #96 当前镜像未装 OBS SDK，不能把填了桶配置等同于上传已通过 |
+| KooSearch | [PR #94](https://github.com/xiangyuli494-cmyk/medpal-trace/pull/94) 适配层与回归测试完成，待独立审批 | t1 确认无实例，保留真实检索与 60 条云端评测待办；本轮不开通资源 |
+
+PR #93 的断网验收有字段读取及未经过 HTTP 路由的问题，已提交需要修改的评审；
+PR #96 的空 Secret 示例覆盖风险已修复并重新请求 t3 审批。
+
 > 这是关键路径的第一环：**C0 不发出，B6 GaussDB 就开不了工，整条链往后滑**。
 > 每拿到一项就把「工单号 / 状态」填上，11/08 前至少 OBS + RDS + ModelArts 三项为「已开通」（**11/03 已完成 OBS 与 RDS，见 §4 实测记录**）。
 
@@ -33,7 +49,23 @@
 | `HUAWEI_OBS_BUCKET` | 桶名 | |
 | `MEDPAL_DB_DSN` | `postgresql://root:***@<地址>:5432/medpal`（通用名优先；旧名 `HUAWEI_GAUSSDB_DSN` 仍兼容） | |
 | `HUAWEI_MODEL_ENDPOINT` / `HUAWEI_MODEL_NAME` | 推理地址与模型名 | |
-| `HUAWEI_KOOSEARCH_ENDPOINT` | 搜索服务地址 | |
+| `HUAWEI_KOOSEARCH_ENDPOINT` | 搜索服务地址（服务开通后控制台给的 endpoint；真实方言下再拼路径） | |
+| `HUAWEI_KOOSEARCH_APP_ID` | KooSearch 应用 ID | |
+| `HUAWEI_KOOSEARCH_REPO_ID` | 知识库（repo）ID，检索必须带 | |
+| `HUAWEI_KOOSEARCH_TOKEN` | 现成的 X-Auth-Token（24 小时有效，调试期图省事用；与下面 IAM 三选一） | |
+| `HUAWEI_IAM_USER` / `HUAWEI_IAM_PASSWORD` / `HUAWEI_IAM_DOMAIN` | 用 IAM 账号现换 token（`iam_domain` 留空则用用户名，主账号场景） | |
+
+**KooSearch 两种方言**（由配置自动选，不用改代码）：
+
+| 方言 | 什么时候 | 请求 |
+| --- | --- | --- |
+| `searchtext` | 配了 `APP_ID` + `REPO_ID` | `POST {endpoint}/v1/{project_id}/applications/{app_id}/uni-search/experience/searchtext`，头 `X-Auth-Token`，体 `{repo_id, content, page_num, page_size}`，读 `doc_list` |
+| `raw` | 只有 endpoint（自建网关 / 本地假服务） | `POST {endpoint}`，体 `{query, top_k}`，读 `hits` |
+
+> **要溯源，文档里必须带锚点**：把 `asset_id` + `anchor_id` 写进文档的 `additional_fields`，
+> 或标签写成 `asset_id=AST-xxx`、`anchor_id=a3`。两者缺一个，这条命中就不进 evidence
+> （不进图表并不意味着检索坏了，`scripts/check_koo.py` 会打印锚点率）。
+> 自检：`PYTHONPATH=packages/core:apps/api python scripts/check_koo.py`。
 
 ## 3. 拿不到时的降级（照 [docs/04-路线图.md](04-路线图.md) §7 的顺序砍）
 
