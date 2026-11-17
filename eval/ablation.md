@@ -73,3 +73,10 @@ python eval/run_eval.py --dataset v2 --retriever koosearch --llm modelarts --jso
 - 命令见 §1；每组 `--json` 的输出是本表的唯一来源。
 - 复跑前请**清库**：`rm -f data/medpal.db && rm -rf data/reports`，再 `python -m app.seed`，否则老 trace 累积会显著抬高 §5.4 的碰撞概率。
 - 验证门禁：`MIN_N=60 MIN_DEPT_ACC=0.85 bash scripts/verify.sh`（本分支实测 PASS）。
+
+## 7. 2026-11-16 适配层复核
+
+PR #94 修复了完整锚点重复加前缀、云端配置不全时误报就绪，以及严格自检对零召回/零锚点的假通过。
+四组各 60 条在临时库复跑后，准确率、召回率、完整率与上表一致；BM25 两组平均耗时为 3.9/3.8 ms，
+未配置 KooSearch 两组为 3.3/3.3 ms。没有实例，不能用这些数字宣称完成真实云端消融。
+细节和剩余验收见 [C5 复核记录](../docs/evidence/2026-11-16-c5-review.md)。
