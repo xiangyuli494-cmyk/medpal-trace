@@ -33,7 +33,23 @@
 | `HUAWEI_OBS_BUCKET` | 桶名 | |
 | `MEDPAL_DB_DSN` | `postgresql://root:***@<地址>:5432/medpal`（通用名优先；旧名 `HUAWEI_GAUSSDB_DSN` 仍兼容） | |
 | `HUAWEI_MODEL_ENDPOINT` / `HUAWEI_MODEL_NAME` | 推理地址与模型名 | |
-| `HUAWEI_KOOSEARCH_ENDPOINT` | 搜索服务地址 | |
+| `HUAWEI_KOOSEARCH_ENDPOINT` | 搜索服务地址（服务开通后控制台给的 endpoint；真实方言下再拼路径） | |
+| `HUAWEI_KOOSEARCH_APP_ID` | KooSearch 应用 ID | |
+| `HUAWEI_KOOSEARCH_REPO_ID` | 知识库（repo）ID，检索必须带 | |
+| `HUAWEI_KOOSEARCH_TOKEN` | 现成的 X-Auth-Token（24 小时有效，调试期图省事用；与下面 IAM 三选一） | |
+| `HUAWEI_IAM_USER` / `HUAWEI_IAM_PASSWORD` / `HUAWEI_IAM_DOMAIN` | 用 IAM 账号现换 token（`iam_domain` 留空则用用户名，主账号场景） | |
+
+**KooSearch 两种方言**（由配置自动选，不用改代码）：
+
+| 方言 | 什么时候 | 请求 |
+| --- | --- | --- |
+| `searchtext` | 配了 `APP_ID` + `REPO_ID` | `POST {endpoint}/v1/{project_id}/applications/{app_id}/uni-search/experience/searchtext`，头 `X-Auth-Token`，体 `{repo_id, content, page_num, page_size}`，读 `doc_list` |
+| `raw` | 只有 endpoint（自建网关 / 本地假服务） | `POST {endpoint}`，体 `{query, top_k}`，读 `hits` |
+
+> **要溯源，文档里必须带锚点**：把 `asset_id` + `anchor_id` 写进文档的 `additional_fields`，
+> 或标签写成 `asset_id=AST-xxx`、`anchor_id=a3`。两者缺一个，这条命中就不进 evidence
+> （不进图表并不意味着检索坏了，`scripts/check_koo.py` 会打印锚点率）。
+> 自检：`PYTHONPATH=packages/core:apps/api python scripts/check_koo.py`。
 
 ## 3. 拿不到时的降级（照 [docs/04-路线图.md](04-路线图.md) §7 的顺序砍）
 
