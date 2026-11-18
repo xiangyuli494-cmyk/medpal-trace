@@ -36,14 +36,27 @@ PROBE_USER = "回复：ok"
 def _offline_sim() -> int:
     """用 TestClient 打 POST /v1/ask，断网时验 HTTP 200 + conclusion.llm_error + trace 落库。
 
-    注意：不能直接调 pipeline.answer() 来判断「接口仍 200」——那绕过了路由层，
+    全程隔离：临时数据目录 + 显式 SQLite + 无 OBS，绝不碰真实库/报告目录/云服务。
+    - 显式 MEDPAL_DB_BACKEND=sqlite，并同时清掉 MEDPAL_DB_DSN 与旧名 HUAWEI_GAUSSDB_DSN；
+      只清前者的话，配置过云库的机器仍会被 deps.want_gaussdb() 判成 gaussdb
+    - MEDPAL_DB / MEDPAL_REPORT_DIR 指向临时目录
+    - 清掉 HUAWEI_OBS_BUCKET，报告上传走降级路径而非真的连 OBS
+
+    不能直接调 pipeline.answer() 判断「接口仍 200」——那绕过了路由层，
     即使 answer() 抛异常也测不出来。这里走 FastAPI 的 TestClient，验的是真实端点。
     """
+    import shutil
+    import tempfile
+
     sys.path.insert(0, os.path.join(ROOT, "apps", "api"))
 
-    # 断网：模型端点指到没人监听的端口；同时确保用默认 SQLite，不受外部 DSN 影响
-    for k in ("MEDPAL_DB_DSN", "MEDPAL_DB_BACKEND"):
+    tmpdir = tempfile.mkdtemp(prefix="offline_sim_")
+    for k in ("MEDPAL_DB_DSN", "HUAWEI_GAUSSDB_DSN", "HUAWEI_OBS_BUCKET"):
         os.environ.pop(k, None)
+    os.environ["MEDPAL_DB_BACKEND"] = "sqlite"
+    os.environ["MEDPAL_DATA_DIR"] = tmpdir
+    os.environ["MEDPAL_DB"] = os.path.join(tmpdir, "medpal.db")
+    os.environ["MEDPAL_REPORT_DIR"] = os.path.join(tmpdir, "reports")
     os.environ["MEDPAL_LLM"] = "openai"
     os.environ["MEDPAL_LLM_BASE_URL"] = "http://127.0.0.1:59999/v1"
     os.environ["MEDPAL_LLM_MODEL"] = "fake"
@@ -53,20 +66,23 @@ def _offline_sim() -> int:
 
     from app.main import app  # noqa: E402
 
-    with TestClient(app) as client:
-        r = client.post("/v1/ask", json={"question": "消化性溃疡怎么治？"})
-        if r.status_code != 200:
-            print(f"FAIL  断网时 /v1/ask 返回 {r.status_code}（应 200）")
-            return 1
-        out = r.json()
-        tid = out.get("trace_id")
-        if not tid:
-            print("FAIL  断网时没有返回 trace_id")
-            return 1
-        back = client.get(f"/v1/traces/{tid}")
-        if back.status_code != 200:
-            print(f"FAIL  trace 未落库：GET /v1/traces/{tid} -> {back.status_code}")
-            return 1
+    try:
+        with TestClient(app) as client:
+            r = client.post("/v1/ask", json={"question": "消化性溃疡怎么治？"})
+            if r.status_code != 200:
+                print(f"FAIL  断网时 /v1/ask 返回 {r.status_code}（应 200）")
+                return 1
+            out = r.json()
+            tid = out.get("trace_id")
+            if not tid:
+                print("FAIL  断网时没有返回 trace_id")
+                return 1
+            back = client.get(f"/v1/traces/{tid}")
+            if back.status_code != 200:
+                print(f"FAIL  trace 未落库：GET /v1/traces/{tid} -> {back.status_code}")
+                return 1
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
     conclusion = out.get("conclusion") or {}
     err = conclusion.get("llm_error")
