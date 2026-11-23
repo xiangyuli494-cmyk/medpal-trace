@@ -29,6 +29,10 @@ fi
 echo "== 1) kubectl -n $NS get pods"
 kubectl -n "$NS" get pods -o wide | tee "$OUT/pods.txt"
 
+# 空 namespace 会假绿：先确认真的有 pod，再看是否全 Running。
+n=$(kubectl -n "$NS" get pods --no-headers 2>/dev/null | wc -l)
+[ "$n" -ge 1 ] || { echo "FAIL: namespace $NS 里没有 pod（deployment 没 apply？）" >&2; exit 1; }
+
 # 所有 pod 必须 Running 且 READY 全满（本部署 replicas=1，即 1/1）。
 bad=$(kubectl -n "$NS" get pods --no-headers 2>/dev/null | awk '$3 != "Running" || $2 != "1/1" {print}')
 if [ -n "$bad" ]; then
@@ -48,6 +52,7 @@ fi
 echo "== 2) 集群外 curl http://$ELB:$PORT/health"
 if ! curl -fsS -m 10 "http://$ELB:$PORT/health" -o "$OUT/health.json"; then
   echo "FAIL: 集群外 /health 不通（APIG/ELB 未打通？）" >&2
+  echo "  提示：若 Pod 日志出现 relation ... does not exist，先确认 gaussdb.prepare() 是否已补 conn.commit()（#96 的 P0）" >&2
   exit 1
 fi
 cat "$OUT/health.json"
@@ -59,7 +64,8 @@ if command -v python3 >/dev/null 2>&1; then
 import json, sys
 d = json.load(open(sys.argv[1]))
 assert d.get("ok") is True, d
-print("   [OK] /health ok=true, storage=", d.get("storage"))
+assert d.get("storage") == "gaussdb", f"后端不是 gaussdb：{d.get('storage')}（pod 可能回落 sqlite）"
+print("   [OK] /health ok=true, storage=gaussdb")
 PY
 fi
 
