@@ -131,3 +131,5 @@ def prepare(conn) -> None:
                 .replace("?", "%s"))
     for stmt in [s.strip() for s in sql.split(";") if s.strip()]:
         conn.execute(stmt)
+    # DDL 必须在首次只读请求关闭连接前持久化，再由 deps 标记 prepared。
+    conn.commit()
