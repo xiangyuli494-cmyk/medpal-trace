@@ -49,6 +49,6 @@ docs/submission/
 docs/cloud-evidence/_selftest/
 
 # K8s 部署真值：只有 *.example.yaml 进仓，填了真值的 Secret / env 文件留在本机
-deploy/k8s/*secret*.yaml
-!deploy/k8s/*secret*.example.yaml
-deploy/k8s/*.env
+deploy/k8s/**/*secret*.yaml
+!deploy/k8s/**/*secret*.example.yaml
+deploy/k8s/**/*.env

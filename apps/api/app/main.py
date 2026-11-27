@@ -62,7 +62,7 @@ def root():
         "name": "medpal-trace",
         "app_version": app_version,
         "core_version": core_version,
-        "endpoints": ["/health", "/v1/cloud", "/v1/assets", "/v1/assets/{asset_id}",
+        "endpoints": ["/livez", "/health", "/v1/cloud", "/v1/assets", "/v1/assets/{asset_id}",
                       "/v1/ask", "/v1/traces/{trace_id}", "/v1/reports/{trace_id}", "/v1/ontology",
                       "/v1/ontology/versions", "/v1/ontology/diff"],
         "web": "/web/" if WEB_DIR.exists() else None,
