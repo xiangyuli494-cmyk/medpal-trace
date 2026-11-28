@@ -20,6 +20,24 @@ def test_health(seeded):
     assert body["llm"] == "offline"
 
 
+def test_liveness_survives_database_failure():
+    from app.deps import get_conn
+    from app.main import app
+
+    def broken_database():
+        raise RuntimeError("database unavailable")
+
+    app.dependency_overrides[get_conn] = broken_database
+    try:
+        client = TestClient(app, raise_server_exceptions=False)
+        assert client.get("/health").status_code == 500
+        live = client.get("/livez")
+        assert live.status_code == 200
+        assert live.json() == {"ok": True}
+    finally:
+        app.dependency_overrides.pop(get_conn, None)
+
+
 def test_ask_returns_trace_and_conclusion(seeded):
     r = _client().post("/v1/ask", json={"question": "上腹隐痛伴反酸，做什么检查？"})
     assert r.status_code == 200

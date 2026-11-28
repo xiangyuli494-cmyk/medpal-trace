@@ -114,7 +114,9 @@ def connect(dsn: str = "", cfg=None):
         raise ProviderNotConfigured("缺少 MEDPAL_DB_DSN 或 HUAWEI_GAUSSDB_DSN")
     psycopg, dict_row = _driver()
     conn = psycopg.connect(dsn)
-    conn.autocommit = True
+    # 不能开 autocommit：trace.writer._insert_trace 用 SAVEPOINT 兜 trace_id 撞号，
+    # 而 psycopg 在 autocommit 下会报 NoActiveSqlTransaction（真机 2026-11-15 复现）。
+    # 写路径本来就在 store/version/writer 里显式 commit()，与 sqlite 侧同一套语义。
     if dict_row is not None:
         conn.row_factory = dict_row
     return wrap(conn)
@@ -129,3 +131,5 @@ def prepare(conn) -> None:
                 .replace("?", "%s"))
     for stmt in [s.strip() for s in sql.split(";") if s.strip()]:
         conn.execute(stmt)
+    # DDL 必须在首次只读请求关闭连接前持久化，再由 deps 标记 prepared。
+    conn.commit()

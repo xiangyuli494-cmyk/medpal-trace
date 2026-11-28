@@ -122,6 +122,8 @@ _TABLES = ("trace", "triple", "version", "asset", "alias", "pending_diff")
 def _drop_tables(conn) -> None:
     for t in _TABLES:
         conn.execute(f"DROP TABLE IF EXISTS {t}")
+    # PostgreSQL 的 DROP 也在事务内；close() 会回滚未提交的清理。
+    conn.commit()
 
 
 def main() -> int:

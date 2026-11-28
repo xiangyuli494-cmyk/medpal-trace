@@ -1,0 +1,70 @@
+# CCE Autopilot：没有可 SSH 的节点，Pod 按 requests/limits 计费，
+# 所以 resources 必填；不要写 hostPath / privileged（Autopilot 不支持）。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: medpal-api
+  namespace: medpal
+  labels:
+    app: medpal-api
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: medpal-api
+  template:
+    metadata:
+      labels:
+        app: medpal-api
+      annotations:
+        # Autopilot 会在节点上注入这层，保留以便在控制台看到版本
+        prometheus.io/scrape: "false"
+    spec:
+      containers:
+      - name: api
+        # 必须先构建并推送本 PR 的 0.1.1，不能复用未核验的旧 0.1.0。
+        image: swr.cn-north-4.myhuaweicloud.com/medpal/medpal-trace:0.1.1
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: medpal-api
+        - secretRef:
+            name: medpal-api
+            optional: false
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          failureThreshold: 3
+        resources:
+          # 单节点 c9.large.2 可分配只有 1930m/2.4Gi，系统 DaemonSet 已占 95%，
+          # 预留至少 128Mi；剩余资源不足时先释放或增加容量，不继续压低内存请求。
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: "500m"
+            memory: 1Gi
+        # 注意：不要挂 emptyDir 到 /app/data —— 镜像里自带 data/（词表、样例、本体种子），
+        # 空目录会把它整体遮住，seed 会报 FileNotFoundError: /app/data/lexicon/medical.json。
+        # 需要持久化时改成 PVC，而不是空目录。
+      # 先按 README 创建拉取凭据，不依赖演示仓库恰好公开。
+      imagePullSecrets:
+      - name: swr-secret

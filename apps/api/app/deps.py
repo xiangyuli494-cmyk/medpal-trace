@@ -37,6 +37,7 @@ def open_conn():
 
     conn = gaussdb.connect()
     if not _prepared:
+        # prepare 内部提交 DDL；成功返回后才标记，读请求关闭连接不会回滚建表。
         gaussdb.prepare(conn)
         _prepared = True
     return conn
